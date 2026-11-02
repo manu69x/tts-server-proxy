@@ -1,0 +1,30 @@
+plugins { id 'com.android.application' }
+
+// firma release: credenziali in app/keystore.properties (committato: repo privato,
+// rigenerare il keystore romperebbe gli aggiornamenti su device installati)
+def keystoreProps = new Properties()
+def keystoreFile = rootProject.file('app/keystore.properties')
+if (keystoreFile.exists()) keystoreProps.load(new FileInputStream(keystoreFile))
+
+android { namespace 'it.ttsserverproxy'; compileSdk 35
+    defaultConfig { applicationId 'it.ttsserverproxy'; minSdk 26; targetSdk 35; versionCode 4; versionName '0.4.0' }
+    signingConfigs {
+        release {
+            storeFile file(keystoreProps.getProperty('storeFile', 'release.keystore.jks'))
+            storePassword keystoreProps.getProperty('storePassword', '')
+            keyAlias keystoreProps.getProperty('keyAlias', 'tts-server-proxy')
+            keyPassword keystoreProps.getProperty('keyPassword', '')
+        }
+    }
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.release
+        }
+    }
+}
+
+dependencies {
+    implementation 'androidx.appcompat:appcompat:1.7.0'
+    implementation 'com.google.android.material:material:1.12.0'
+}
