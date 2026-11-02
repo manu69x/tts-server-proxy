@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Privacy Policy — tts-server-proxy</title>
+<style>
+  body { font-family: -apple-system, Roboto, "Segoe UI", sans-serif; max-width: 780px;
+         margin: 40px auto; padding: 0 24px; color: #1c2733; line-height: 1.65; }
+  h1 { color: #0D47A1; } h2 { color: #1565C0; margin-top: 32px; }
+  .card { background: #f2f7ff; border: 1px solid #d6e5ff; border-radius: 12px; padding: 16px 20px; }
+  code { background: #eef2f7; padding: 2px 6px; border-radius: 4px; }
+  .updated { color: #5a6b7d; font-size: 0.9em; }
+</style>
+</head>
+<body>
+<h1>Privacy Policy — tts-server-proxy</h1>
+<p class="updated">Last updated: November 2, 2026</p>
+
+<div class="card">
+<b>In one sentence:</b> tts-server-proxy does not collect, store, or share any of your
+data with the developer or any third party. All speech synthesis happens on a server
+<b>you</b> configure, on <b>your</b> network.
+</div>
+
+<h2>What the app does</h2>
+<p>tts-server-proxy is an Android text-to-speech (TTS) engine. When any Android app asks
+the system to speak text out loud, this app sends that text to a speech-synthesis server
+whose address <b>you configure yourself</b> (for example a Qwen3-TTS server running on
+your own computer or LAN), receives the generated audio, and plays it through the normal
+Android audio pipeline.</p>
+
+<h2>Data the developer collects</h2>
+<p><b>None.</b> The app contains no analytics, no telemetry, no advertising SDKs, no
+crash-reporting services, and it never contacts the developer or any third-party server on
+its own. It only talks to the endpoint you enter in its settings.</p>
+
+<h2>Data processed on your behalf</h2>
+<ul>
+  <li><b>Text to synthesize:</b> sent, in the moment of synthesis, to the server endpoint
+  you configured. If that server is on your LAN, the text stays on your LAN.</li>
+  <li><b>Server endpoint and API key:</b> stored only in the app's private local storage on
+  your device. They are sent solely as authentication to <i>your</i> server and to nobody
+  else.</li>
+</ul>
+<p>The developer of this app operates none of these servers and has no access to them.</p>
+
+<h2>Permissions</h2>
+<ul>
+  <li><code>INTERNET</code> — to reach the speech server you configured.</li>
+  <li><code>FOREGROUND_SERVICE</code> / <code>FOREGROUND_SERVICE_MEDIA_PLAYBACK</code> —
+  to keep synthesis alive while it runs (Android may otherwise freeze background apps).</li>
+  <li><code>POST_NOTIFICATIONS</code> — optional, to show a small "synthesizing…" progress
+  notification. The app works if you deny it.</li>
+</ul>
+
+<h2>Network security</h2>
+<p>The app speaks plain HTTP by design, because it is meant for self-hosted servers on a
+trusted local network. If your endpoint supports HTTPS, you can enter an
+<code>https://</code> address and the app will use it. Use endpoints you control or trust:
+whatever you type is sent to the server you chose.</p>
+
+<h2>Children</h2>
+<p>The app is not directed at children and does not knowingly collect any data from anyone,
+of any age.</p>
+
+<h2>Changes</h2>
+<p>If this policy ever changes (it shouldn't — the app has no way to phone home), the
+updated version will be published at this same address with a new date.</p>
+
+<h2>Contact</h2>
+<p>Open an issue at <a href="https://github.com/manu69x/tts-server-proxy/issues">
+github.com/manu69x/tts-server-proxy</a>.</p>
+</body>
+</html>
