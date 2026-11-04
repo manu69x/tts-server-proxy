@@ -118,6 +118,21 @@ curl -X POST http://YOUR_SERVER:PORT/v1/audio/speech \
   -d '{"model":"qwen3-tts-1.7b_G0","voice":"clone:MyVoice","input":"hello","response_format":"wav"}'
 ```
 
+### No Linux box? Ready-made compatible servers
+
+Any OpenAI-compatible `/v1/audio/speech` server works — including **native
+Windows options** that need nothing but a double-click:
+
+| Server | Difficulty | GUI | Cloning | Italian | Docs |
+|---|---|---|---|---|---|
+| **Chatterbox-TTS-Server** | ★☆☆ Easy (Windows portable, zero install) | ✅ | ✅ | ✅ | [guide](docs/servers/chatterbox-tts-server.md) |
+| **Kokoro-FastAPI** | ★★☆ Medium (Windows/uv or Docker) | ✅ | ❌ preset voices | ✅ | [guide](docs/servers/kokoro-fastapi.md) |
+| **AllTalk TTS V2** | ★★☆ Medium (Windows setup script) | ✅ | ✅ XTTS | ✅ | [guide](docs/servers/alltalk-tts-v2.md) |
+| **Qwen3-TTS on Linux** | ★★★ Advanced | ❌ | ✅ zero-shot | ✅ | [guide](docs/servers/qwen3-tts-linux.md) |
+
+Full comparison + per-server install instructions and the exact app config:
+**[docs/servers/README.md](docs/servers/README.md)**.
+
 ## 🖼️ Screenshots
 
 | Configuration | Synthesis test | Diagnostics |
