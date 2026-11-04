@@ -182,4 +182,6 @@ your own with `keytool` to sign your builds.
 
 Built with 🎧 by [@manu69x](https://github.com/manu69x) — voices by [Qwen3-TTS](https://github.com/QwenLM/Qwen3), routing by [llama-swap](https://github.com/mostlygeek/llama-swap).
 
+Another project by the same author: [**Battery Test**](https://batterytest.altervista.org) — measure your laptop's real battery life with a server-verified test. Free, no registration.
+
 </div>
