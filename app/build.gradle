@@ -7,7 +7,7 @@ def keystoreFile = rootProject.file('app/keystore.properties')
 if (keystoreFile.exists()) keystoreProps.load(new FileInputStream(keystoreFile))
 
 android { namespace 'it.ttsserverproxy'; compileSdk 35
-    defaultConfig { applicationId 'it.ttsserverproxy'; minSdk 26; targetSdk 35; versionCode 4; versionName '0.4.0' }
+    defaultConfig { applicationId 'it.ttsserverproxy'; minSdk 26; targetSdk 35; versionCode 10; versionName '0.6.0' }
     signingConfigs {
         release {
             storeFile file(keystoreProps.getProperty('storeFile', 'release.keystore.jks'))

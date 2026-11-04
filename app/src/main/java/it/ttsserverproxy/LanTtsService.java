@@ -19,12 +19,51 @@ import org.json.JSONObject;
 
 public class LanTtsService extends TextToSpeechService {
     private static final String TAG = "TtsServerProxy";
+    private static final String CH_READY = "motore";
     private static final String CH_SYNTH = "synthesis";
-    private static final int NOTIF_ID = 1;
+    private static final int NOTIF_READY = 1;   // persistente: mantiene il servizio FGS
+    private static final int NOTIF_SYNTH = 2;   // temporanea: solo durante la sintesi
     private volatile boolean stopped;
 
-    // ---- synthesis notification + foreground service: without startForeground,
-    // Android freezes/kills the process during long syntheses (cold start ~3 min) ----
+    @Override public void onCreate() {
+        super.onCreate();
+        // Sempre in foreground dal primo bind: i servizi cached della ROM (nubia/Android 16)
+        // perdono i bind del framework durante l'inattività → il motore diventa irraggiungibile
+        // ("Speech engine problem" finché non si riseleziona). Un FGS non viene mai declassato.
+        try {
+            android.app.NotificationManager nm =
+                    (android.app.NotificationManager) getSystemService(NOTIFICATION_SERVICE);
+            if (nm == null) return;
+            android.app.NotificationChannel ch = new android.app.NotificationChannel(CH_READY,
+                    "Motore TTS", android.app.NotificationManager.IMPORTANCE_MIN);
+            ch.setShowBadge(false);
+            nm.createNotificationChannel(ch);
+            android.app.Notification n = new android.app.Notification.Builder(this, CH_READY)
+                    .setSmallIcon(R.drawable.ic_stat_synth)
+                    .setColor(getColor(R.color.notification_accent))
+                    .setContentTitle("tts-server-proxy attivo")
+                    .setContentText("Motore TTS pronto — sintesi sul tuo server LAN")
+                    .setOngoing(true)
+                    .setOnlyAlertOnce(true)
+                    .setCategory(android.app.Notification.CATEGORY_SERVICE)
+                    .build();
+            startForeground(NOTIF_READY, n);
+            dbg("onCreate: FGS attivo (notifica motore pronto)");
+        } catch (Throwable t) {
+            // su questa ROM logcat e' morto: il debug.log e' l'unico canale diagnostico
+            dbg("onCreate startForeground ERR: " + t);
+        }
+    }
+
+    // started (receiver/sticky restart) oltre che bound: START_STICKY fa riavviare
+    // il FGS dal sistema dopo ogni kill del processo; il riavvio e' system-initiated
+    // quindi non incappa nelle FGS-launch restrictions
+    @Override public int onStartCommand(android.content.Intent intent, int flags, int startId) {
+        return START_STICKY;
+    }
+
+    // ---- notifica di sintesi temporanea: il servizio e' GIA' foreground (onCreate);
+    // qui mostriamo solo il progresso sul canale dedicato ----
     private void notifyStart(String text) {
         try {
             android.app.NotificationManager nm =
@@ -41,28 +80,19 @@ public class LanTtsService extends TextToSpeechService {
                     .setColor(getColor(R.color.notification_accent))
                     .setContentTitle("Speech synthesis")
                     .setContentText(body)
-                    .setOngoing(true)
                     .setOnlyAlertOnce(true)
                     .setCategory(android.app.Notification.CATEGORY_PROGRESS)
                     .setProgress(0, 0, true)
                     .build();
-            try {
-                startForeground(NOTIF_ID, n);   // process protected until synthesis ends
-            } catch (Throwable t2) {
-                // if the system rejects the foreground promotion (rare, engine bound by the framework)
-                if (checkSelfPermission("android.permission.POST_NOTIFICATIONS")
-                        == android.content.pm.PackageManager.PERMISSION_GRANTED)
-                    nm.notify(NOTIF_ID, n);
-            }
+            nm.notify(NOTIF_SYNTH, n);
         } catch (Throwable ignored) {}
     }
 
     private void notifyDone() {
         try {
-            stopForeground(STOP_FOREGROUND_REMOVE);
             android.app.NotificationManager nm =
                     (android.app.NotificationManager) getSystemService(NOTIFICATION_SERVICE);
-            if (nm != null) nm.cancel(NOTIF_ID);
+            if (nm != null) nm.cancel(NOTIF_SYNTH);   // la notifica "motore pronto" resta
         } catch (Throwable ignored) {}
     }
 
@@ -87,14 +117,17 @@ public class LanTtsService extends TextToSpeechService {
         if (lang == null || lang.isEmpty()) return TextToSpeech.LANG_NOT_SUPPORTED;
         // normalize ISO-3 → ISO-2 (the framework may pass "ita")
         String l = iso2(lang);
+        int result = TextToSpeech.LANG_NOT_SUPPORTED;
         for (JSONObject m : models()) {
             String ml = MainActivity.androidLang(m.optString("lang", "it"));
             if (ml.equalsIgnoreCase(l)) {
-                return (country == null || country.isEmpty()) ? TextToSpeech.LANG_AVAILABLE
+                result = (country == null || country.isEmpty()) ? TextToSpeech.LANG_AVAILABLE
                         : TextToSpeech.LANG_COUNTRY_AVAILABLE;
+                break;
             }
         }
-        return TextToSpeech.LANG_NOT_SUPPORTED;
+        dbg("onIsLanguageAvailable " + lang + "-" + country + "-" + variant + " -> " + result);
+        return result;
     }
 
     private static String iso2(String l) {
@@ -131,11 +164,29 @@ public class LanTtsService extends TextToSpeechService {
     @Override public String onGetDefaultVoiceNameFor(String lang, String country, String variant) {
         try {
             String l = iso2(lang == null ? "" : lang);
-            for (JSONObject m : models()) {
+            List<JSONObject> ms = models();
+            // user-chosen default voice wins: apps that only call setLanguage()
+            // (no explicit voice, e.g. Evie, navigation) get this voice
+            try {
+                String dv = getSharedPreferences("config", MODE_PRIVATE).getString("default_voice", "");
+                if (dv != null && !dv.isEmpty()) {
+                    for (JSONObject m : ms) {
+                        if (dv.equals(m.optString("label", ""))
+                                && MainActivity.androidLang(m.optString("lang", "it")).equalsIgnoreCase(l)) {
+                            dbg("onGetDefaultVoiceNameFor " + lang + "-" + country + " -> " + dv + " (user default)");
+                            return dv;
+                        }
+                    }
+                }
+            } catch (Throwable ignored) {}
+            String out = null;
+            for (JSONObject m : ms) {
                 String ml = MainActivity.androidLang(m.optString("lang", "it"));
-                if (ml.equalsIgnoreCase(l)) return m.optString("label", m.optString("model"));
+                if (ml.equalsIgnoreCase(l)) { out = m.optString("label", m.optString("model")); break; }
             }
-            return models().isEmpty() ? null : models().get(0).optString("label", "default");
+            if (out == null && !ms.isEmpty()) out = ms.get(0).optString("label", "default");
+            dbg("onGetDefaultVoiceNameFor " + lang + "-" + country + " -> " + out);
+            return out;
         } catch (Throwable t) {
             dbg("onGetDefaultVoiceNameFor ERR: " + t);
             return null;
@@ -162,10 +213,12 @@ public class LanTtsService extends TextToSpeechService {
     }
 
     @Override public int onIsValidVoiceName(String voiceName) {
+        int result = TextToSpeech.ERROR;
         for (JSONObject m : models())
             if (voiceName.equals(m.optString("label", "")) || voiceName.equals(m.optString("model", "")))
-                return TextToSpeech.SUCCESS;
-        return TextToSpeech.ERROR;
+                result = TextToSpeech.SUCCESS;
+        dbg("onIsValidVoiceName '" + voiceName + "' -> " + result);
+        return result;
     }
 
     @Override public int onLoadVoice(String voiceName) {
@@ -193,9 +246,19 @@ public class LanTtsService extends TextToSpeechService {
 
     @Override protected void onSynthesizeText(SynthesisRequest request, SynthesisCallback callback) {
         stopped = false;
+        dbg("onSynthesizeText ENTER voice=" + request.getVoiceName()
+                + " lang=" + request.getLanguage() + " chars="
+                + (request.getText() == null ? -1 : request.getText().length()));
         try {
             String text = request.getText() == null ? "" : request.getText().toString();
-            if (text.trim().isEmpty()) { callback.error(TextToSpeech.ERROR); return; }
+            if (text.trim().isEmpty()) {
+                // client apps sometimes fire speak("") (e.g. empty notifications):
+                // a no-op success avoids the scary "Speech engine problem" dialog
+                dbg("empty text request, no-op done");
+                notifyDone();
+                callback.done();
+                return;
+            }
 
             JSONObject model = modelFor(request.getVoiceName(), request.getLanguage());
             if (model == null) { dbg("no model configured"); callback.error(TextToSpeech.ERROR); return; }
@@ -244,9 +307,11 @@ public class LanTtsService extends TextToSpeechService {
         return getSharedPreferences("config", MODE_PRIVATE);
     }
 
-    /** POST with retries on FAST failures (Tailscale blip after phone idle):
-     *  if an attempt dies within 15 s we retry, otherwise it is a real failure
-     *  (read timeout on a cold server) and we don't insist. */
+    /** POST with retries on FAST failures (Tailscale blip after phone idle) and on
+     *  HTTP 5xx regardless of timing: a 500 "upstream command exited prematurely"
+     *  means the remote engine crashed at spawn (flaky Vulkan cold start on the TTS
+     *  box after wake-from-sleep) — llama-swap re-spawns it on the next attempt and
+     *  the retry succeeds. Timeouts (real cold-server waits) are NOT retried. */
     private byte[] post(String base, String apiKey, String model, String voice, String text) throws Exception {
         IOException last = null;
         for (int attempt = 0; attempt < 3; attempt++) {
@@ -255,9 +320,11 @@ public class LanTtsService extends TextToSpeechService {
                 return postOnce(base, apiKey, model, voice, text);
             } catch (IOException e) {
                 last = e;
-                if (stopped || System.currentTimeMillis() - t0 > 15000) throw e;
-                dbg("attempt " + (attempt + 1) + " failed (" + e + "), retrying in 1.5 s");
-                Thread.sleep(1500);
+                boolean fast = System.currentTimeMillis() - t0 <= 15000;
+                boolean serverError = e.getMessage() != null && e.getMessage().startsWith("HTTP 5");
+                if (stopped || (!fast && !serverError)) throw e;
+                dbg("attempt " + (attempt + 1) + " failed (" + e + "), retrying in 2 s");
+                Thread.sleep(2000);
             }
         }
         throw last;

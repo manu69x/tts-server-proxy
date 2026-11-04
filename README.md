@@ -9,7 +9,7 @@ running on **your GPU, on your LAN**. No cloud, no subscriptions, no per-charact
 
 ![Platform](https://img.shields.io/badge/platform-Android%208.0%2B-3DDC84?logo=android&logoColor=white)
 ![API](https://img.shields.io/badge/API-26–35-1565C0)
-![Release](https://img.shields.io/badge/release-v0.4.0-1E88E5)
+![Release](https://img.shields.io/badge/release-v0.6.0-1E88E5)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Cloud](https://img.shields.io/badge/cloud-none-success)
 
@@ -72,7 +72,7 @@ POST {endpoint}/v1/audio/speech
 
 ### Option A — prebuilt APK
 
-1. Grab `tts-server-proxy-v0.4.0.apk` from the [latest release](../../releases/latest)
+1. Grab `tts-server-proxy-v0.6.0.apk` from the [latest release](../../releases/latest)
    (or from [`apk/`](apk/) in this repository).
 2. Install it (allow "install unknown apps" if asked).
 3. Open the app: endpoint, model and voice come **pre-filled with a sensible default** —

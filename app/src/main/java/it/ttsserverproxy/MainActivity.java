@@ -76,17 +76,33 @@ public class MainActivity extends androidx.appcompat.app.AppCompatActivity {
     private TextInputLayout endpointL, apiKeyL;
     private TextInputEditText endpoint, apiKey;
     private LinearLayout modelsList;
+    private Spinner defaultVoiceS;
     private TextView status;
 
     @Override public void onCreate(Bundle b) {
         super.onCreate(b);
         prefs = getSharedPreferences("config", MODE_PRIVATE);
+        // heal: porta il motore in FGS started (non solo bound). Da app visibile la
+        // startForegroundService e' sempre permessa; START_STICKY lo tiene vivo dopo
+        // ogni kill della ROM fino al prossimo riavvio (lì BootReceiver lo riporta su).
+        try { startForegroundService(new android.content.Intent(this, LanTtsService.class)); }
+        catch (Throwable ignored) {}
         // first launch: seed the recommended preset (empty model list)
         if (loadModels(this).isEmpty()) saveModels(this, defaultModels());
         // notification permission (Android 13+): the synthesis notification is optional
         if (android.os.Build.VERSION.SDK_INT >= 33 && checkSelfPermission(
                 "android.permission.POST_NOTIFICATIONS") != android.content.pm.PackageManager.PERMISSION_GRANTED)
             requestPermissions(new String[]{"android.permission.POST_NOTIFICATIONS"}, 1);
+        // keep the engine out of Android's app freezer: a frozen TTS process cannot be
+        // reached by the framework (it reports "engine problem" until the app is re-bound)
+        android.os.PowerManager pm = (android.os.PowerManager) getSystemService(POWER_SERVICE);
+        if (pm != null && !pm.isIgnoringBatteryOptimizations(getPackageName())) {
+            try {
+                startActivity(new android.content.Intent(
+                        android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+                        android.net.Uri.parse("package:" + getPackageName())));
+            } catch (Throwable ignored) {}
+        }
         buildUi();
     }
 
@@ -167,6 +183,24 @@ public class MainActivity extends androidx.appcompat.app.AppCompatActivity {
         MaterialCardView modelsC = Ui.card(this);
         LinearLayout models = Ui.into(this, modelsC);
         models.addView(Ui.sectionLabel(this, "Engine voices (one Android voice per model)"));
+        // ---- default voice: used by apps that only setLanguage() (no voice pick) ----
+        TextView dvHint = new TextView(this);
+        dvHint.setText("Default voice (used by apps that don't pick one)");
+        dvHint.setTextSize(12);
+        dvHint.setTextColor(Ui.attr(this, com.google.android.material.R.attr.colorOnSurfaceVariant));
+        dvHint.setPadding(0, Ui.dp(this, 4), 0, 0);
+        models.addView(dvHint);
+        defaultVoiceS = new Spinner(this);
+        defaultVoiceS.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
+            @Override public void onItemSelected(android.widget.AdapterView<?> p, android.view.View v, int pos, long id) {
+                String lbl = (String) p.getItemAtPosition(pos);
+                if (lbl != null && !lbl.isEmpty())
+                    prefs.edit().putString("default_voice", lbl).apply();
+            }
+            @Override public void onNothingSelected(android.widget.AdapterView<?> p) {}
+        });
+        models.addView(defaultVoiceS, Ui.lp(LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT, 0, 0, 0, Ui.dp(this, 8)));
         modelsList = new LinearLayout(this);
         modelsList.setOrientation(LinearLayout.VERTICAL);
         models.addView(modelsList);
@@ -258,6 +292,24 @@ public class MainActivity extends androidx.appcompat.app.AppCompatActivity {
             rowCard.addView(row);
             modelsList.addView(rowCard);
         }
+        renderDefaultVoice(modelObjs);
+    }
+
+    /** Rebuilds the "Default voice" spinner from the current model list. */
+    private void renderDefaultVoice(List<JSONObject> ms) {
+        List<String> labels = new ArrayList<>();
+        for (JSONObject m : ms) labels.add(m.optString("label", m.optString("model")));
+        ArrayAdapter<String> ad = new ArrayAdapter<>(this,
+                android.R.layout.simple_spinner_item, labels);
+        ad.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        defaultVoiceS.setAdapter(ad);
+        String cur = prefs.getString("default_voice", "");
+        int sel = labels.indexOf(cur);
+        if (sel < 0 && !labels.isEmpty()) {
+            sel = 0;   // deleted/stale default: fall back to the first model
+            prefs.edit().putString("default_voice", labels.get(0)).apply();
+        }
+        if (sel >= 0) defaultVoiceS.setSelection(sel);
     }
 
     private void editDialog(int editIndex, JSONObject existing) {
